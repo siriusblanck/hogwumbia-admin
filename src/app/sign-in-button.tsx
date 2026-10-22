@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Spinner } from "@/components/action-feedback";
 
 export default function SignInButton({ label = "Sign in", className = "text-button", initialError, icon, onStart }: {
   label?: string;
@@ -36,8 +37,8 @@ export default function SignInButton({ label = "Sign in", className = "text-butt
   return (
     <>
       <button className={className} type="button" onClick={signIn} disabled={pending} aria-busy={pending}>
-        {icon}
-        {pending ? "Opening Google..." : label}
+        {pending ? <Spinner /> : icon}
+        <span className="button-label" key={String(pending)}>{pending ? "Opening Google…" : label}</span>
       </button>
       {error && <span className="sign-in-error" role="alert">{error}</span>}
     </>
