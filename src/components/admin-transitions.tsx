@@ -1,7 +1,7 @@
 "use client";
 
 import NextLink from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, useTransition, type ComponentProps, type ReactNode } from "react";
 import { NAVIGATION_FEEDBACK_MS, navigationDestination, type Destination } from "@/lib/admin/navigation";
 import PageSkeleton from "./page-skeleton";
@@ -54,10 +54,11 @@ export function TransitionLink({ href, ...props }: Omit<ComponentProps<typeof Ne
 
 export function RouteContent({ children }: { children: ReactNode }) {
   const navigation = useAdminNavigation();
-  const pathname = usePathname();
-  const search = useSearchParams();
+  // This is the only navigation loading surface. Route-level loading boundaries
+  // would end the transition early and hand off to a second skeleton.
+  // Keep Next's router subtree mounted so URL changes don't restart its work.
   return <div className="route-stage" aria-busy={navigation.pending}>
     {navigation.pending && <PageSkeleton pathname={navigation.pathname} />}
-    <div key={`${pathname}?${search.toString()}`} className="route-content" hidden={navigation.pending}>{children}</div>
+    <div className="route-content" hidden={navigation.pending}>{children}</div>
   </div>;
 }

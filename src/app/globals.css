@@ -30,7 +30,7 @@
 .sidebar nav a>.nav-status{margin-left:auto;width:13px;height:13px;flex-shrink:0;display:grid;place-items:center}
 .nav-status .spinner{width:12px;height:12px;border-width:1.5px}
 .route-stage{min-height:65vh}
-.route-content{animation:surface-in .26s var(--ease-out) both}
+.route-content{animation:row-in .16s ease-out both}
 .route-progress{position:fixed;inset:0 0 auto;z-index:100;height:3px;overflow:hidden;pointer-events:none;background:#305f6610}
 .route-progress i,.action-progress i{display:block;height:100%;width:40%;background:var(--accent);border-radius:10px;animation:progress-travel 1.1s var(--ease-ui) infinite}
 .button{transition:background .18s,transform .18s var(--ease-out),box-shadow .18s,border-color .18s,opacity .18s}
@@ -45,21 +45,12 @@
 .staff button:active{transform:scale(.9)}
 .spinner{display:inline-block;width:14px;height:14px;flex-shrink:0;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
 .metric,.panel,.media-card{transition:border-color .2s,box-shadow .2s}
-.route-content .metric,.route-content .dashboard-grid>.panel,.route-content .media-card{animation:surface-in .32s var(--ease-out) both}
-.route-content .metric:nth-child(2),.route-content .media-card:nth-child(2){animation-delay:30ms}
-.route-content .metric:nth-child(3),.route-content .media-card:nth-child(3){animation-delay:60ms}
-.route-content .metric:nth-child(4),.route-content .media-card:nth-child(4){animation-delay:90ms}
-.route-content .media-card:nth-child(n+5){animation-delay:110ms}
-.route-content .dashboard-grid>.panel:nth-child(n+3){animation-delay:70ms}
 .media-card:has(a:hover){border-color:#bdccc7;box-shadow:0 8px 24px #1723340a}
 .spotlight-card{border-radius:6px;transition:background .2s,transform .2s var(--ease-out)}
 .spotlight-card:hover{transform:translateY(-2px)}
 .spotlight-card:active{transform:none}
 tr{transition:background .18s}
 tbody tr:hover{background:#f3f5f0}
-.route-content tbody tr{animation:row-in .25s ease both}
-.route-content tbody tr:nth-child(n+3){animation-delay:50ms}
-.route-content tbody tr:nth-child(n+6){animation-delay:90ms}
 .search{transition:border-color .18s,box-shadow .18s}
 .search:focus-within{border-color:#8aacb2;box-shadow:0 0 0 3px #305f6609}
 .editor-fields{border:0;margin:0;padding:0;min-width:0;display:grid;gap:13px;transition:opacity .2s}
@@ -84,7 +75,7 @@ tbody tr:hover{background:#f3f5f0}
 .generation-preview>div>div{height:10px;margin:10px 0}
 .generation-preview>div>div+div{width:65%}
 .action-progress{height:3px;border-radius:10px;background:#305f6610;overflow:hidden}
-.page-skeleton{animation:row-in .12s ease both;min-height:65vh}
+.page-skeleton{min-height:65vh}
 .skeleton-block{position:relative;overflow:hidden;border-radius:5px;background:#e9eae4}
 .skeleton-block:after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,#ffffff80,transparent);animation:skeleton-sweep 1.35s ease-in-out infinite}
 .skeleton-button{width:140px;height:43px}

@@ -3,6 +3,9 @@
  * Navigation: immediate destination skeleton + hidden old content; 149/150ms
  * boundary; cached navigation; rapid A→B uses B; query/search and clear; native
  * back/forward feedback; unmount listener cleanup; reduced-motion zero delay.
+ * Loading handoff regression: one persistent skeleton before/after the minimum
+ * wait while the server page suspends; reveal only completed content; one push;
+ * shared router DOM/state survives path and query changes without remounting.
  * Skeletons: overview, profile/vote tables, media grid, both editor routes.
  * Feedback: idle/pending/success/error, stale success hidden on retry, buttons
  * disabled while pending, disclosure expanded/hidden/inert state.
@@ -13,7 +16,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
+import { Suspense, use, useEffect, useState, type ReactNode } from "react";
 import type { FormState } from "@/lib/admin/validation";
 const h = vi.hoisted(() => ({ path: "/", query: "", push: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), oauth: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: h.push }), usePathname: () => h.path, useSearchParams: () => new URLSearchParams(h.query) }));
@@ -22,7 +25,6 @@ vi.mock("@/app/(admin)/media/actions", () => ({ createMedia: h.create, updateMed
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { signInWithOAuth: h.oauth } }) }));
 import { AdminTransitions, RouteContent, TransitionLink, useAdminNavigation } from "@/components/admin-transitions";
 import PageSkeleton from "@/components/page-skeleton";
-import RouteLoading from "@/components/route-loading";
 import Search from "@/components/search";
 import { ActionButton, Disclosure, FormFeedback, SubmitButton } from "@/components/action-feedback";
 import { CreateForm, DeleteForm, EditForm } from "@/components/media-forms";
@@ -33,8 +35,13 @@ function NavigationProbe() { const state = useAdminNavigation(); return <span da
 function Harness({ children = <p>Current data</p> }: { children?: ReactNode }) {
   return <AdminTransitions><TransitionLink href="/profiles">Profiles</TransitionLink><TransitionLink href="/media">Media</TransitionLink><NavigationProbe/><RouteContent>{children}</RouteContent></AdminTransitions>;
 }
+function DeferredPage({ request }: { request: Promise<void> }) {
+  use(request);
+  return <p>Loaded profiles</p>;
+}
 beforeEach(() => {
   vi.clearAllMocks(); h.path = "/"; h.query = "";
+  h.push.mockReset();
   window.history.replaceState({}, "", "/");
   Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false })) });
   h.create.mockResolvedValue({ error: "Generation failed. Try again." });
@@ -44,6 +51,41 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("navigation feedback", () => {
+  it("keeps one skeleton until the actual server page is ready", async () => {
+    vi.useFakeTimers(); const request = pendingResult<void>();
+    function RouterHarness() {
+      const [loading, setLoading] = useState(false);
+      h.push.mockImplementation(() => setLoading(true));
+      const page = loading ? <DeferredPage request={request.promise}/> : <p>Current data</p>;
+      return <Harness>{page}</Harness>;
+    }
+    render(<Suspense fallback={<p>Unexpected outer fallback</p>}><RouterHarness/></Suspense>);
+    fireEvent.click(screen.getByRole("link", { name: "Profiles" }));
+    const skeleton = screen.getByRole("status", { name: "Loading profiles" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(150); });
+    expect(screen.getByRole("status", { name: "Loading profiles" })).toBe(skeleton);
+    expect(screen.getByTestId("navigation").textContent).toBe("/profiles:true");
+    expect(screen.queryByText("Unexpected outer fallback")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(850); });
+    expect(screen.getByRole("status", { name: "Loading profiles" })).toBe(skeleton);
+    h.path = "/profiles";
+    await act(async () => { request.resolve(); });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("Loaded profiles").closest("[hidden]")).toBeNull();
+    expect(h.push.mock.calls).toEqual([["/profiles"]]);
+  });
+  it("preserves the shared router subtree when the URL changes", () => {
+    const mounted = vi.fn();
+    function RouterChild() { useEffect(() => { mounted(); }, []); return <input aria-label="Retained draft" defaultValue=""/>; }
+    const view = render(<Harness><RouterChild/></Harness>);
+    const input = screen.getByLabelText("Retained draft");
+    fireEvent.change(input, { target: { value: "Unsaved state" } });
+    h.path = "/profiles"; view.rerender(<Harness><RouterChild/></Harness>);
+    h.query = "q=Ron"; view.rerender(<Harness><RouterChild/></Harness>);
+    expect(screen.getByLabelText("Retained draft")).toBe(input);
+    expect((screen.getByLabelText("Retained draft") as HTMLInputElement).value).toBe("Unsaved state");
+    expect(mounted).toHaveBeenCalledTimes(1);
+  });
   it("shows a destination skeleton immediately and retains it through the 150ms boundary", async () => {
     vi.useFakeTimers(); const view = render(<Harness/>);
     fireEvent.click(screen.getByRole("link", { name: "Profiles" }));
@@ -120,7 +162,6 @@ describe("accessible loading and action states", () => {
     expect(screen.getByRole("status").getAttribute("aria-label")).toBe(`Loading ${title}`);
     expect(container.querySelector(".skeleton-block")).not.toBeNull();
   });
-  it("uses the current path for the server loading boundary", () => { h.path = "/votes"; render(<RouteLoading/>); expect(screen.getByRole("status").getAttribute("aria-label")).toBe("Loading votes & ratings"); });
   it("uses the overview skeleton by default", () => { render(<PageSkeleton/>); expect(screen.getByRole("status").getAttribute("aria-label")).toBe("Loading overview"); });
   it("disables pending action buttons and restores the idle label", () => {
     const view = render(<ActionButton pending={true} pendingLabel="Saving…">Save changes</ActionButton>);
