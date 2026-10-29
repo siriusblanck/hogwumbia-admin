@@ -1,7 +1,8 @@
 "use client";
 import { useActionState, useState } from "react";
 import { createMedia, updateMedia, deleteMedia } from "@/app/(admin)/media/actions";
-import { ActionButton, Disclosure, FormFeedback } from "./action-feedback";
+import { ActionButton, FormFeedback } from "./action-feedback";
+import { ConfirmDeleteForm } from "./confirm-delete";
 export function CreateForm({writers}: {writers:{id:string;name:string}[]}) {
   const [state,action,pending]=useActionState(createMedia,{});
   const [character, setCharacter] = useState("");
@@ -22,6 +23,5 @@ export function EditForm({id,caption,alt}: {id:string;caption:string;alt:string}
   return <form className="editor-form" action={action} aria-busy={pending}><input type="hidden" name="id" value={id}/><fieldset className="editor-fields" disabled={pending}><label htmlFor="caption">Caption</label><textarea id="caption" name="caption" value={draftCaption} onChange={event => setDraftCaption(event.target.value)} maxLength={200} required rows={4}/><p className="fine">200 characters maximum.</p><label htmlFor="image_alt">Image description</label><textarea id="image_alt" name="image_alt" value={draftAlt} onChange={event => setDraftAlt(event.target.value)} required maxLength={600} rows={4}/><p className="fine">Alt text for screen readers.</p><FormFeedback state={state} pending={pending}/><ActionButton pending={pending} pendingLabel="Saving…">Save changes</ActionButton></fieldset></form>;
 }
 export function DeleteForm({id}: {id:string}) {
-  const [state,action,pending]=useActionState(deleteMedia,{});
-  return <Disclosure className="delete-zone" title="Delete post"><p>This permanently deletes the post, its image, and its votes.</p><form action={action} className="editor-form" aria-busy={pending}><input type="hidden" name="id" value={id}/><fieldset className="editor-fields" disabled={pending}><label htmlFor="confirmation">Type DELETE to confirm</label><input id="confirmation" name="confirmation" autoComplete="off" required pattern="DELETE"/><FormFeedback state={state} pending={pending}/><ActionButton className="button danger" pending={pending} pendingLabel="Deleting…">Delete permanently</ActionButton></fieldset></form></Disclosure>;
+  return <ConfirmDeleteForm title="Delete post" description="This permanently deletes the post, its image, and its votes." action={deleteMedia} hidden={{ id }} buttonLabel="Delete permanently"/>;
 }
