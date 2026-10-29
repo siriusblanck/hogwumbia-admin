@@ -4,7 +4,9 @@
  * Edits: valid boundary lengths, empty/oversize/invalid types, allowlisted fields only;
  *         database errors, missing rows, successful invalidation.
  * Deletes: exact confirmation; row failure never removes storage; cleanup warning on failure.
- * Creates: valid identity/complete profile, bad input, model failure, success redirect.
+ * Creates: valid identity/complete profile, bad input, model failure, success redirect;
+ *          request/response logging never changes the returned error or redirect, even
+ *          when the log itself fails or generation throws (then the request is marked failed).
  * Statistics: empty/zero votes, downvotes, week boundaries in NY, net totals, rankings.
  * Pagination/search: empty, arrays, hostile numbers/strings, bounds, last page.
  * Ambiguity: profile and vote management is read-only per rubric; admin media creation
@@ -31,8 +33,10 @@ let result:{data:unknown;error:unknown};let db:Record<string,ReturnType<typeof v
 beforeEach(()=>{
  vi.clearAllMocks();h.requireAdmin.mockResolvedValue({user:{id},profile:{id,first_name:"Test",last_name:"Admin",house:"ravenclaw"},supabase:{}});
  result={data:{id,image_path:`${id}/a.png`},error:null};
- db={};for(const key of ["from","select","update","delete","eq","order"])db[key]=vi.fn(()=>db);
+ db={};for(const key of ["from","select","update","delete","eq","order","insert"])db[key]=vi.fn(()=>db);
  db.maybeSingle=vi.fn(async()=>result);db.range=vi.fn(async()=>({data:[],error:null}));
+ db.single=vi.fn(async()=>result);db.in=vi.fn(async()=>({data:[],error:null}));
+ (db as Record<string,unknown>).error=null;
  remove=vi.fn(async()=>({error:null}));h.admin.mockReturnValue({...db,storage:{from:vi.fn(()=>({remove}))}});
  h.create.mockResolvedValue({ok:true,generationId:id});
 });
@@ -66,7 +70,9 @@ describe("protected data and mutations",()=>{
  it("rejects invalid creation without model calls",async()=>{expect((await createMedia({},form({character_id:"bad",twist:""}))).error).toContain("Choose");expect(h.create).not.toHaveBeenCalled()});
  it("requires complete profile",async()=>{h.requireAdmin.mockResolvedValueOnce({user:{id},profile:{first_name:null,last_name:null,house:null},supabase:{}});expect((await createMedia({},form({character_id:id,twist:""}))).error).toContain("Choose your name");expect(h.create).not.toHaveBeenCalled()});
  it("keeps model errors visible",async()=>{h.create.mockResolvedValueOnce({ok:false,error:"Daily limit"});expect(await createMedia({},form({character_id:id,twist:""}))).toEqual({error:"Daily limit"})});
- it("creates with session identity, ignoring forged owner",async()=>{await expect(createMedia({},form({character_id:id2,twist:"hello",author_id:id2}))).rejects.toThrow(`redirect:/media/${id}?created=1`);expect(h.create).toHaveBeenCalledWith(undefined,{id,first_name:"Test",last_name:"Admin",house:"ravenclaw"},{characterId:id2,twist:"hello"})});
+ it("creates with session identity, ignoring forged owner",async()=>{await expect(createMedia({},form({character_id:id2,twist:"hello",author_id:id2}))).rejects.toThrow(`redirect:/media/${id}?created=1`);expect(h.create).toHaveBeenCalledWith(expect.objectContaining({generateCaption:expect.any(Function),generateImage:expect.any(Function)}),{id,first_name:"Test",last_name:"Admin",house:"ravenclaw"},{characterId:id2,twist:"hello"})});
+ it("does not change the redirect when starting the request log fails",async()=>{db.single.mockResolvedValueOnce({data:null,error:{code:"500"}});await expect(createMedia({},form({character_id:id,twist:""}))).rejects.toThrow(`redirect:/media/${id}?created=1`);expect(db.update).not.toHaveBeenCalled()});
+ it("marks the request failed and rethrows when generation itself throws",async()=>{h.create.mockRejectedValueOnce(new Error("boom"));await expect(createMedia({},form({character_id:id,twist:""}))).rejects.toThrow("boom");expect(db.update).toHaveBeenCalledWith(expect.objectContaining({status:"failed",error_message:"Unexpected error."}))});
  it("rejects invalid ID, missing media and read error",async()=>{expect(await loadMedia("bad")).toBeNull();expect(h.admin).not.toHaveBeenCalled();result={data:null,error:null};expect(await loadMedia(id)).toBeNull();result.error="fail";await expect(loadMedia(id)).rejects.toThrow("could not be loaded")});
  it("loads empty database correctly and fails closed on DB errors",async()=>{expect(await loadSnapshot()).toEqual({profiles:[],media:[],votes:[],writers:[]});db.range.mockResolvedValueOnce({data:null,error:"private error"});await expect(loadSnapshot()).rejects.toThrow("could not be loaded")});
  it("encodes storage URL components",()=>{vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL","https://test.supabase.co");expect(mediaUrl("user/a b.png")).toBe("https://test.supabase.co/storage/v1/object/public/generations/user/a%20b.png");vi.unstubAllEnvs()});

@@ -6,15 +6,41 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { editSchema, deleteSchema, type FormState } from "@/lib/admin/validation";
 import { parseGenerationForm } from "@/lib/owl-post/inputs";
 import { isProfileComplete } from "@/lib/profile";
-import { createGeneration } from "@/lib/owl-post/create-generation";
+import { createGeneration, type GenerationOutcome } from "@/lib/owl-post/create-generation";
 import { buildGenerationDeps } from "@/lib/owl-post/generation-deps";
+import { newYorkDate } from "@/lib/owl-post/dates";
+import { finishGenerationRequest, recordLlmCalls, startGenerationRequest } from "@/lib/admin/generation-log";
+
+const UNEXPECTED_ERROR = "Unexpected error.";
 
 export async function createMedia(_previous: FormState, form: FormData): Promise<FormState> {
   const { supabase, user, profile } = await requireAdmin();
   const parsed = parseGenerationForm(form);
   if (!parsed.ok) return { error: Object.values(parsed.fields).join(" ") };
   if (!isProfileComplete(profile)) return { error: "Choose your name and house in Hog Wumbia first." };
-  const result = await createGeneration(buildGenerationDeps(supabase, user.id), { id: user.id, first_name: profile.first_name, last_name: profile.last_name, house: profile.house }, parsed.value);
+
+  const admin = createAdminClient();
+  const requestId = await startGenerationRequest(admin, {
+    requestedBy: user.id,
+    characterId: parsed.value.characterId,
+    twist: parsed.value.twist,
+    owlPostDate: newYorkDate(new Date()),
+  });
+  const { deps, calls } = recordLlmCalls(buildGenerationDeps(supabase, user.id), { now: () => new Date(), ms: () => performance.now() });
+
+  let result: GenerationOutcome;
+  try {
+    result = await createGeneration(deps, { id: user.id, first_name: profile.first_name, last_name: profile.last_name, house: profile.house }, parsed.value);
+  } catch (error) {
+    if (requestId) await finishGenerationRequest(admin, requestId, { outcome: { ok: false, error: UNEXPECTED_ERROR }, calls: calls(), completedAt: new Date().toISOString() });
+    throw error;
+  }
+
+  if (requestId) {
+    const outcome = result.ok ? { ok: true as const, generationId: result.generationId } : { ok: false as const, error: result.error };
+    await finishGenerationRequest(admin, requestId, { outcome, calls: calls(), completedAt: new Date().toISOString() });
+  }
+
   if (!result.ok) return { error: result.error };
   revalidatePath("/", "layout");
   redirect(`/media/${result.generationId}?created=1`);
