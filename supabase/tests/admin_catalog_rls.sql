@@ -146,12 +146,21 @@ begin
   end;
 
   begin
-    select id, updated_at into term_id, before_ts from public.terms order by term limit 1;
-    update public.terms set definition = definition where id = term_id;
+    -- Inside this single transaction, now() is frozen at the transaction's start,
+    -- so the row's insert-time default and a trigger-stamped now() are identical and
+    -- "advances" can never be observed. Instead, set an explicit stale updated_at on
+    -- the update (plus a harmless real column change) and prove the trigger
+    -- overrides it with now() rather than leaving the stale value in place.
+    select id into term_id from public.terms order by term limit 1;
+    before_ts := timestamptz '2000-01-01 00:00:00+00';
+    update public.terms
+      set definition = definition,
+          updated_at = before_ts
+      where id = term_id;
     select updated_at into after_ts from public.terms where id = term_id;
     report := report || format(
-      '%s updating a term advances updated_at (%s -> %s)',
-      case when after_ts > before_ts then 'PASS' else 'FAIL' end, before_ts, after_ts
+      '%s updating a term sets updated_at through the trigger (%s -> %s)',
+      case when after_ts = now() then 'PASS' else 'FAIL' end, before_ts, after_ts
     );
   exception when others then
     report := report || ('FAIL terms updated_at trigger: ' || sqlerrm);
