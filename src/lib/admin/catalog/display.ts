@@ -26,7 +26,7 @@ export function relationLabel(row: Record<string, unknown>, labelColumns: readon
 export function displayValue(field: Field, value: CatalogValue, labels: RelationLabels): { text: string; href?: string } {
   if (value === null || value === undefined || value === "") return { text: "—" };
   if (field.kind === "boolean") return { text: value ? "Yes" : "No" };
-  if (field.kind === "datetime" || field.kind === "date") return { text: dateTimeLabel(String(value)) };
+  if (field.kind === "datetime") return { text: dateTimeLabel(String(value)) };
   if (field.kind === "enum") return { text: String(value).replace(/_/g, " ") };
   if (field.kind === "integer") return { text: String(value) };
   if (field.kind === "relation" && field.relation) {

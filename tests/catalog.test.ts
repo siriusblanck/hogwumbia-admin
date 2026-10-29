@@ -218,6 +218,52 @@ describe("parseRecordForm", () => {
     const badDate: Resource = { ...terms, fields: [{ name: "owl_post_date", label: "Date", kind: "date", editable: true }] };
     expect(() => parseRecordForm(badDate, form({ owl_post_date: "x" }))).toThrow();
   });
+
+  it("domain: exactly 253 characters is accepted, 254 is rejected", () => {
+    const label63 = "a".repeat(63);
+    const domain253 = `${label63}.${label63}.${label63}.${"a".repeat(61)}`;
+    const domain254 = `${label63}.${label63}.${label63}.${"a".repeat(62)}`;
+    expect(domain253).toHaveLength(253);
+    expect(domain254).toHaveLength(254);
+    expect(parseRecordForm(domains, form({ domain: domain253 })).ok).toBe(true);
+    expect((parseRecordForm(domains, form({ domain: domain254 })) as { error: string }).error).toBe("Domain must be a domain like columbia.edu.");
+  });
+
+  describe("generation-examples: optional relation and required-field boundaries", () => {
+    const examples = RESOURCES["generation-examples"];
+
+    it("prompt_chain_id is an optional relation: empty -> null with no error, valid uuid passes through, non-uuid errors", () => {
+      expect(okValues(parseRecordForm(examples, form({ prompt_chain_id: "", scene: "s", caption: "c" }))).prompt_chain_id).toBeNull();
+      expect(okValues(parseRecordForm(examples, form({ prompt_chain_id: id, scene: "s", caption: "c" }))).prompt_chain_id).toBe(id);
+      expect((parseRecordForm(examples, form({ prompt_chain_id: "nope", scene: "s", caption: "c" })) as { error: string }).error).toBe(
+        "Chain must be chosen from the list.",
+      );
+    });
+
+    it("scene and caption are required", () => {
+      expect((parseRecordForm(examples, form({ scene: "", caption: "" })) as { error: string }).error).toBe(
+        "Scene is required. Caption is required.",
+      );
+    });
+
+    it("caption boundary: 400 characters passes, 401 fails", () => {
+      expect(parseRecordForm(examples, form({ scene: "s", caption: "a".repeat(400) })).ok).toBe(true);
+      expect((parseRecordForm(examples, form({ scene: "s", caption: "a".repeat(401) })) as { error: string }).error).toBe(
+        "Caption must be at most 400 characters.",
+      );
+    });
+
+    it("twist and notes are optional: empty -> null", () => {
+      const values = okValues(parseRecordForm(examples, form({ scene: "s", caption: "c" })));
+      expect(values.twist).toBeNull();
+      expect(values.notes).toBeNull();
+    });
+
+    it("is_active checkbox: on -> true, absent -> false", () => {
+      expect(okValues(parseRecordForm(examples, form({ scene: "s", caption: "c", is_active: "on" }))).is_active).toBe(true);
+      expect(okValues(parseRecordForm(examples, form({ scene: "s", caption: "c" }))).is_active).toBe(false);
+    });
+  });
 });
 
 describe("display", () => {
@@ -247,7 +293,7 @@ describe("display", () => {
     expect(displayValue(field("boolean"), true, {})).toEqual({ text: "Yes" });
     expect(displayValue(field("boolean"), false, {})).toEqual({ text: "No" });
     expect(displayValue(field("datetime"), "2026-01-01T17:30:00Z", {}).text).toBe("Jan 1, 2026, 12:30 PM");
-    expect(displayValue(field("date"), "2026-01-01T17:30:00Z", {}).text).toBe("Jan 1, 2026, 12:30 PM");
+    expect(displayValue(field("date"), "2026-10-22", {}).text).toBe("2026-10-22");
     expect(displayValue(field("enum"), "public_app", {})).toEqual({ text: "public app" });
     expect(displayValue(field("integer"), 42, {})).toEqual({ text: "42" });
     expect(displayValue(field("text"), "hi", {})).toEqual({ text: "hi" });

@@ -10,10 +10,16 @@ function requiredOrEmpty(field: Field): FieldResult {
   return field.required ? { ok: false, error: `${field.label} is required.` } : { ok: true, value: null };
 }
 
+function maxLengthError(field: Field, value: string): FieldResult | null {
+  if (field.max !== undefined && value.length > field.max) return { ok: false, error: `${field.label} must be at most ${field.max} characters.` };
+  return null;
+}
+
 function parseText(field: Field, raw: string): FieldResult {
   const value = raw.trim();
   if (value === "") return requiredOrEmpty(field);
-  if (field.max !== undefined && value.length > field.max) return { ok: false, error: `${field.label} must be at most ${field.max} characters.` };
+  const maxError = maxLengthError(field, value);
+  if (maxError) return maxError;
   if (field.pattern && !field.pattern.regex.test(value)) return { ok: false, error: field.pattern.message };
   return { ok: true, value };
 }
@@ -21,7 +27,8 @@ function parseText(field: Field, raw: string): FieldResult {
 function parseEmail(field: Field, raw: string): FieldResult {
   const value = raw.trim().toLowerCase();
   if (value === "") return requiredOrEmpty(field);
-  if (field.max !== undefined && value.length > field.max) return { ok: false, error: `${field.label} must be at most ${field.max} characters.` };
+  const maxError = maxLengthError(field, value);
+  if (maxError) return maxError;
   if (!z.email().safeParse(value).success) return { ok: false, error: `${field.label} must be a valid email address.` };
   return { ok: true, value };
 }
@@ -36,7 +43,8 @@ function parseDomain(field: Field, raw: string): FieldResult {
 function parseUrl(field: Field, raw: string): FieldResult {
   const value = raw.trim();
   if (value === "") return requiredOrEmpty(field);
-  if (field.max !== undefined && value.length > field.max) return { ok: false, error: `${field.label} must be at most ${field.max} characters.` };
+  const maxError = maxLengthError(field, value);
+  if (maxError) return maxError;
   try {
     if (new URL(value).protocol !== "https:") throw new Error("not https");
   } catch {
