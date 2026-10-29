@@ -1,3 +1,5 @@
+import { catalogSection } from "./catalog/sections";
+
 export const NAVIGATION_FEEDBACK_MS = 150;
 
 export type Destination = { href: string; pathname: string };
@@ -16,12 +18,22 @@ export function navigationDestination(href: unknown, current: unknown): Destinat
   }
 }
 
+/** `/<key>` or `/<key>/<rest>` for a known catalog key; null otherwise. */
+function catalogPath(pathname: string): { section: NonNullable<ReturnType<typeof catalogSection>>; rest?: string } | null {
+  const [key, rest, extra] = pathname.split("/").filter(Boolean);
+  if (!key || extra !== undefined) return null;
+  const section = catalogSection(key);
+  return section ? { section, rest } : null;
+}
+
 export function adminSection(pathname: string) {
   if (pathname === "/profiles") return "profiles";
   if (pathname === "/votes") return "votes";
   if (pathname === "/media") return "media";
   if (pathname === "/media/new") return "create";
   if (pathname.startsWith("/media/")) return "edit";
+  const catalog = catalogPath(pathname);
+  if (catalog) return catalog.rest === undefined ? "catalog-list" : "catalog-record";
   return "overview";
 }
 
@@ -29,3 +41,10 @@ export const sectionTitles = {
   overview: "Overview", profiles: "Profiles", votes: "Votes & ratings",
   media: "Media library", create: "Create post", edit: "Edit post",
 };
+
+/** Page title for a pathname: catalog titles come from CATALOG_SECTIONS, everything else from sectionTitles. */
+export function sectionTitle(pathname: string): string {
+  const catalog = catalogPath(pathname);
+  if (catalog) return catalog.rest === "new" ? `New ${catalog.section.singular}` : catalog.section.title;
+  return sectionTitles[adminSection(pathname) as keyof typeof sectionTitles];
+}

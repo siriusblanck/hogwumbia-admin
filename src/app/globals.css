@@ -136,3 +136,15 @@ tbody tr:hover{background:#f3f5f0}
  .skeleton-block:after{display:none}
  .disclosure-panel{opacity:1}
 }
+
+/* Grouped sidebar navigation (Task 5) */
+.nav-group{display:flex;flex-direction:column;gap:6px}
+.nav-group-label{font-size:9px;letter-spacing:1.5px;color:#7e94a7;margin:18px 0 6px 13px}
+.sidebar nav{min-height:0;overflow-y:auto;flex:1}
+.sidebar nav a{padding:9px 13px}
+@media(max-width:650px){
+ .sidebar nav{overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start;max-width:100%;min-width:0}
+ .nav-group{display:contents}
+ .nav-group-label{display:none}
+ .sidebar nav a{flex:0 0 auto}
+}

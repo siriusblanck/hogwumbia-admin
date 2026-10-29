@@ -14,7 +14,7 @@
  * Auth: Google pending/failure/retry and sign-out pending, without live writes.
  * Ambiguity: only decorative copy is removed; destructive warnings remain.
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Suspense, use, useEffect, useState, type ReactNode } from "react";
 import type { FormState } from "@/lib/admin/validation";
@@ -24,6 +24,8 @@ vi.mock("next/link", () => ({ default: ({ onNavigate, href, children, ...props }
 vi.mock("@/app/(admin)/media/actions", () => ({ createMedia: h.create, updateMedia: h.update, deleteMedia: h.remove }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { signInWithOAuth: h.oauth } }) }));
 import { AdminTransitions, RouteContent, TransitionLink, useAdminNavigation } from "@/components/admin-transitions";
+import Navigation from "@/components/navigation";
+import { CATALOG_SECTIONS } from "@/lib/admin/catalog/sections";
 import PageSkeleton from "@/components/page-skeleton";
 import Search from "@/components/search";
 import { ActionButton, Disclosure, FormFeedback, SubmitButton } from "@/components/action-feedback";
@@ -49,6 +51,29 @@ beforeEach(() => {
   h.remove.mockResolvedValue({ error: "Type DELETE to confirm removal of this post and its votes." });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+describe("grouped navigation", () => {
+  it("renders all 15 links across the expected groups and marks the active link", () => {
+    h.path = "/llm-models";
+    render(<AdminTransitions><Navigation /></AdminTransitions>);
+    const nav = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(within(nav).getAllByRole("link")).toHaveLength(4 + CATALOG_SECTIONS.length);
+    expect(["Prompts", "Activity", "Models", "Access"]).toEqual(
+      [...new Set(CATALOG_SECTIONS.map((section) => section.group))],
+    );
+    for (const label of ["Prompts", "Activity", "Models", "Access"]) {
+      expect(within(nav).getByText(label).className).toBe("nav-group-label");
+    }
+    for (const base of ["Overview", "Profiles", "Media library", "Votes & ratings"]) {
+      expect(within(nav).getByRole("link", { name: base }).getAttribute("aria-current")).toBeNull();
+    }
+    for (const section of CATALOG_SECTIONS) {
+      const link = within(nav).getByRole("link", { name: section.title });
+      expect(link.getAttribute("href")).toBe(`/${section.key}`);
+      expect(link.getAttribute("aria-current")).toBe(section.key === "llm-models" ? "page" : null);
+    }
+  });
+});
 
 describe("navigation feedback", () => {
   it("keeps one skeleton until the actual server page is ready", async () => {
