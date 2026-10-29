@@ -27,8 +27,8 @@ function navGroups(): NavGroup[] {
 export default function Navigation() {
   const { pathname: path, pending } = useAdminNavigation();
   return <nav aria-label="Admin navigation">{navGroups().map((group, index) => (
-    <div className="nav-group" key={group.label ?? `group-${index}`}>
-      {group.label && <p className="nav-group-label">{group.label}</p>}
+    <div className="nav-group" key={group.label ?? `group-${index}`} role={group.label ? "group" : undefined} aria-labelledby={group.label ? `nav-group-${index}` : undefined}>
+      {group.label && <p className="nav-group-label" id={`nav-group-${index}`}>{group.label}</p>}
       {group.links.map(({ href, label, icon }) => {
         const active = href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
         return <TransitionLink key={href} href={href} aria-current={active ? "page" : undefined}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-text">{label}</span><span className="nav-status">{active && pending && <Spinner />}</span></TransitionLink>;
